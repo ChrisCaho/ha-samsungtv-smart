@@ -755,6 +755,25 @@ to normal viewing.
 The option is disabled by default. Status updates and controls continue while
 artwork is showing.
 
+### Frame Art on a TV that is not a Frame
+
+The art entities and services are created when the TV's device information
+says `FrameTVSupport: "true"`. Some sets say `"false"` and run the art app
+anyway: a 2026 Micro RGB (MRN75R95HAFXZA) answers `api_version 6.0.0.0` on the
+art-app channel and takes Art Mode on/off, Art Store slideshows and mattes like
+a Frame. For such a TV enable **Frame Art on a non-Frame TV** in the advanced
+options. The integration then asks the art-app channel for its version and
+enables the art features only when it answers; a TV without the app is left
+exactly as it was. Have the TV on the first time, so the channel can answer.
+Expect only what the set has: the R95H has no motion or brightness sensor, and
+because its art app says so (`support_motion_sensor` / `support_brightness_sensor`
+FALSE) the Motion Sensitivity, Motion Timer and Brightness Sensor selects are
+not created for it, as on a Frame without the sensor. Art Mode on/off, the
+Frame Art sensor, brightness and colour temperature, mattes, thumbnails, the
+gallery and upload cards all work. Turning the option off again removes the
+art entities at the reload it triggers (a Frame's own confirmation is never
+touched). Off by default.
+
 ### Frame Art Sensor Attributes
 
 - `art_mode` — current Art Mode state

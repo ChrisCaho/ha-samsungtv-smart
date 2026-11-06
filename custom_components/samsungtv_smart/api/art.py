@@ -311,9 +311,19 @@ class SamsungTVAsyncArt:
         name: str = "HomeAssistant",
         supports_get_brightness: bool | None = None,
         supports_get_color_temperature: bool | None = None,
+        art_on_non_frame: bool = False,
     ) -> None:
         """Initialize the Art API."""
         self._host = host
+        # CONF_ART_ON_NON_FRAME: ask the art-app channel when the REST flag
+        # says "not a Frame". A positive answer is kept for the session.
+        self._art_on_non_frame = art_on_non_frame
+        # True once _probe_art_channel() got an api_version answer. Read back
+        # through art_channel_confirmed by the sensor platform, which persists
+        # CONF_IS_FRAME_TV: it records whether the flag came from the REST
+        # answer (a Frame) or from this probe, so turning the option off later
+        # knows which flag it may drop.
+        self._art_channel_verified = False
         self._log = _DeviceLoggerAdapter(_LOGGER, {"host": host})
         self._port = port
         self._token = token
@@ -1680,8 +1690,28 @@ class SamsungTVAsyncArt:
 
     # ==================== REST API Methods ====================
 
+    @property
+    def art_channel_confirmed(self) -> bool:
+        """True when art support was confirmed by the art-app probe, not REST.
+
+        False for a Frame (the REST flag answered first and the channel was
+        never asked) and until the probe has answered on a non-Frame set.
+        """
+        return self._art_channel_verified
+
     async def supported(self) -> bool:
-        """Check if the TV supports Frame TV art mode."""
+        """Check if the TV supports Frame TV art mode.
+
+        The REST device info flag FrameTVSupport is the normal answer. With
+        art_on_non_frame set, a TV that reports it "false" is asked for the
+        art-app channel's api_version instead: a version string means the app
+        is there and the art features work (2026 Micro RGB R95H). A positive
+        probe is kept for the session; a silent channel is not, so a set that
+        was asleep at startup is asked again on the next call, as the REST
+        path already does.
+        """
+        if self._art_channel_verified:
+            return True
         try:
             session = await self._get_session()
             url = f"http://{self._host}:8001/api/v2/"
@@ -1690,10 +1720,34 @@ class SamsungTVAsyncArt:
                     if resp.status == 200:
                         data = await resp.json()
                         device = data.get("device", {})
-                        return device.get("FrameTVSupport") == "true"
+                        if device.get("FrameTVSupport") == "true":
+                            return True
         except Exception as ex:
             self._log.debug("Art API: Error checking support: %s", ex)
-        return False
+        if not self._art_on_non_frame:
+            return False
+        return await self._probe_art_channel()
+
+    async def _probe_art_channel(self) -> bool:
+        """Ask the art-app channel for its api_version (art_on_non_frame)."""
+        try:
+            data = await self._send_art_request(
+                {"request": "api_version"}, timeout=self._timeout
+            )
+        except Exception as ex:
+            self._log.debug("Art API: art-app channel probe failed: %s", ex)
+            return False
+        version = data.get("version") if isinstance(data, dict) else None
+        if not version:
+            self._log.debug("Art API: art-app channel did not answer api_version")
+            return False
+        self._art_channel_verified = True
+        self._log.info(
+            "Art API: FrameTVSupport is not 'true' but the art-app channel "
+            "answers (api_version %s) - Art Mode features enabled",
+            version,
+        )
+        return True
 
     async def on(self) -> bool:
         """Check if the TV is on."""

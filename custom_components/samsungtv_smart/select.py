@@ -689,6 +689,25 @@ async def _load_motion_options(
                 device_info, "support_brightness_sensor"
             )
 
+            # A set whose art app says it has no sensor still answers the
+            # setting reads: the 2026 Micro RGB R95H (support_motion_sensor and
+            # support_brightness_sensor both FALSE) returns motion_sensitivity
+            # with the value "false", motion_timer 240 and
+            # brightness_sensor_setting on - the settings exist in the firmware,
+            # the hardware behind them does not. Built from those answers, the
+            # Motion Sensitivity select had "false" as its only option and the
+            # other two changed nothing on the TV. The flags are the TV's own
+            # word on the hardware (that is why #402 reads them), so a definite
+            # FALSE discards the matching answers; None (the channel did not
+            # say) keeps creating controls from whatever the TV answered, as
+            # before. Motion Timer ("Sleep After", off after no motion for that
+            # long) is a function of the motion sensor and follows its flag.
+            if supports_motion is False:
+                sensitivity_item = None
+                timer_item = None
+            if supports_brightness is False:
+                brightness_sensor_item = None
+
             entities = []
 
             if isinstance(sensitivity_item, dict) and sensitivity_item.get("value"):

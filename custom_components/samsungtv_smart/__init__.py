@@ -63,6 +63,7 @@ from .const import (
     CONF_ART_LLM_API_KEY,
     CONF_ART_LLM_MODEL,
     CONF_ART_LLM_PROVIDER,
+    CONF_ART_ON_NON_FRAME,
     CONF_ART_PORT,
     CONF_ART_VISION_API_KEY,
     CONF_AUTH_METHOD,
@@ -102,6 +103,7 @@ from .const import (
     DEFAULT_SOURCE_LIST,
     DEFAULT_TIMEOUT,
     DOMAIN,
+    IS_FRAME_TV_ART_APP,
     LOCAL_LOGO_PATH,
     MIN_HA_MAJ_VER,
     MIN_HA_MIN_VER,
@@ -1255,6 +1257,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     clear_token_problem(hass, entry.entry_id, METHOD_LOCAL)
     clear_token_problem(hass, entry.entry_id, METHOD_IP_CONTROL)
 
+    # Frame Art on a non-Frame TV, turned off again. The sensor platform
+    # persists CONF_IS_FRAME_TV once the art support is confirmed so that later
+    # setups skip the live check (a sleeping Frame must not lose its entities).
+    # When that confirmation came from the art-app probe, the flag is the
+    # IS_FRAME_TV_ART_APP marker rather than True; with the option now off that
+    # flag would keep creating the art entities for a set the user no longer
+    # wants treated as a Frame, so drop it here, before the platforms read it.
+    # A flag written for a real Frame (True) is left alone. CONF_IS_FRAME_TV is
+    # in _NO_RELOAD_DATA_KEYS, so this write does not schedule another reload.
+    if (
+        not entry.options.get(CONF_ART_ON_NON_FRAME, False)
+        and entry.data.get(CONF_IS_FRAME_TV) == IS_FRAME_TV_ART_APP
+    ):
+        hass.config_entries.async_update_entry(
+            entry,
+            data={k: v for k, v in entry.data.items() if k != CONF_IS_FRAME_TV},
+        )
+        _LOGGER.info(
+            "Frame Art on a non-Frame TV turned off for %s: dropping the art-app "
+            "confirmation, the art entities are not created",
+            entry.data.get(CONF_HOST),
+        )
+
     # setup entry
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
@@ -1301,6 +1326,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         supports_get_color_temperature=entry.data.get(
             CONF_SUPPORTS_GET_COLOR_TEMPERATURE
         ),
+        art_on_non_frame=entry.options.get(CONF_ART_ON_NON_FRAME, False),
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, SAMSMART_PLATFORM)
@@ -1346,6 +1372,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 # re-creates them with the new cadence (the media_player / selects read the
 # SmartThings one live).
 _RELOAD_OPTIONS = (
+    # Turning Frame Art on for a non-Frame set creates the art entities.
+    CONF_ART_ON_NON_FRAME,
     CONF_ENABLE_IP_CONTROL,
     CONF_IP_CONTROL_ART_MODE,
     CONF_IP_CONTROL_POLL_INTERVAL,

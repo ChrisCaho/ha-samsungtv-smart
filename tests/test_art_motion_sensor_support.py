@@ -143,3 +143,52 @@ async def test_controls_are_created_on_a_healthy_channel_without_retry():
 
     assert len(added) == 3
     assert art_api.get_device_info.await_count == 1
+
+
+async def test_answered_settings_without_the_hardware_create_no_controls():
+    # The R95H (a non-Frame set running the art app, CONF_ART_ON_NON_FRAME):
+    # both support flags FALSE, yet every setting read answers - the settings
+    # exist in the firmware, the sensor does not. Built from those answers the
+    # Motion Sensitivity select had "false" as its only option. The flags win.
+    art_api = MagicMock()
+    art_api.get_device_info = AsyncMock(
+        return_value={
+            "support_motion_sensor": "FALSE",
+            "support_brightness_sensor": "FALSE",
+        }
+    )
+    art_api.get_artmode_settings = AsyncMock(
+        side_effect=[
+            _item("motion_sensitivity", "false"),
+            _item("motion_timer", "240", {"valid_values": '["off","60","240"]'}),
+            _item("brightness_sensor_setting", "on"),
+        ]
+    )
+
+    added = await _run_load(art_api, max_retries=3)
+
+    assert added == []
+    assert art_api.get_device_info.await_count == 1  # final, no retry
+
+
+async def test_one_missing_sensor_keeps_the_other_control():
+    # Motion sensor absent, brightness sensor present: only the Brightness
+    # Sensor control is created, and Motion Timer follows the motion flag.
+    art_api = MagicMock()
+    art_api.get_device_info = AsyncMock(
+        return_value={
+            "support_motion_sensor": "FALSE",
+            "support_brightness_sensor": "TRUE",
+        }
+    )
+    art_api.get_artmode_settings = AsyncMock(
+        side_effect=[
+            _item("motion_sensitivity", "false"),
+            _item("motion_timer", "240", {"valid_values": '["off","60","240"]'}),
+            _item("brightness_sensor_setting", "on"),
+        ]
+    )
+
+    added = await _run_load(art_api, max_retries=3)
+
+    assert [e._setting_name for e in added] == ["brightness_sensor_setting"]
