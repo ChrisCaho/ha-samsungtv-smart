@@ -194,6 +194,20 @@ CONF_SYNC_TURN_ON = "sync_turn_on"
 CONF_TOGGLE_ART_MODE = "toggle_art_mode"
 CONF_REPORT_ART_MODE_AS_OFF = "report_art_mode_as_off"
 DEFAULT_REPORT_ART_MODE_AS_OFF = False
+# Frame Art on a TV whose REST device info says FrameTVSupport "false" but
+# which runs the art app anyway: the 2026 Micro RGB MRN75R95HAFXZA answers
+# api_version 6.0.0.0 on the art-app channel and takes art mode on/off, Art
+# Store slideshows and mattes like a Frame. Opt-in, off by default: with it on,
+# such a TV is asked for api_version and the art entities and services are
+# enabled only when the channel answers. A set without the app stays as it was.
+CONF_ART_ON_NON_FRAME = "art_on_non_frame"
+# Value of CONF_IS_FRAME_TV when the art support was confirmed by that probe
+# rather than by the REST flag. Every reader of CONF_IS_FRAME_TV only tests it
+# for truth, so this string behaves like True and skips the live check on later
+# setups, exactly as True does for a Frame. It exists so that turning the
+# option off can tell the two apart and drop the flag again (__init__.py): a
+# flag written for a real Frame is never touched.
+IS_FRAME_TV_ART_APP = "art_app"
 CONF_USE_LOCAL_LOGO = "use_local_logo"
 CONF_USE_MUTE_CHECK = "use_mute_check"
 CONF_USE_ST_CHANNEL_INFO = "use_st_channel_info"
